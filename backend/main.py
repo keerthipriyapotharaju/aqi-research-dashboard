@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 import pandas as pd
 import joblib
+
 from pathlib import Path
 from xgboost import XGBRegressor
 
@@ -12,7 +14,7 @@ from xgboost import XGBRegressor
 
 app = FastAPI(
     title="AQI Research Dashboard API",
-    description="Backend API for multi-city AQI forecasting research",
+    description="Multi-horizon AQI forecasting API",
     version="1.0.0"
 )
 
@@ -23,7 +25,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,31 +33,35 @@ app.add_middleware(
 
 
 # ============================================================
-# PATHS
+# BASE DIRECTORY
 # ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
-
-DATA_PATH = BASE_DIR / "air_quality_daily_final_with_infrastructure.csv"
-
-MODEL_1DAY_PATH = BASE_DIR / "xgb_1day.json"
-MODEL_3DAY_PATH = BASE_DIR / "xgb_3day.json"
-MODEL_7DAY_PATH = BASE_DIR / "xgb_7day.json"
-
-ENCODER_PATH = BASE_DIR / "infrastructure_encoder.pkl"
 
 
 # ============================================================
 # LOAD DATASET
 # ============================================================
 
+DATA_PATH = (
+    BASE_DIR /
+    "air_quality_daily_final_with_infrastructure.csv"
+)
+
 df = pd.read_csv(DATA_PATH)
 
-df["date"] = pd.to_datetime(df["date"])
+df["date"] = pd.to_datetime(
+    df["date"]
+)
 
-df = df.sort_values(
-    ["city", "date"]
-).reset_index(drop=True)
+df = (
+    df.sort_values(
+        ["city", "date"]
+    )
+    .reset_index(drop=True)
+)
+
+print("Dataset loaded successfully!")
 
 
 # ============================================================
@@ -63,35 +69,91 @@ df = df.sort_values(
 # ============================================================
 
 model_1day = XGBRegressor()
-model_1day.load_model(MODEL_1DAY_PATH)
+model_1day.load_model(
+    str(BASE_DIR / "xgb_1day.json")
+)
 
 model_3day = XGBRegressor()
-model_3day.load_model(MODEL_3DAY_PATH)
+model_3day.load_model(
+    str(BASE_DIR / "xgb_3day.json")
+)
 
 model_7day = XGBRegressor()
-model_7day.load_model(MODEL_7DAY_PATH)
+model_7day.load_model(
+    str(BASE_DIR / "xgb_7day.json")
+)
+
+print("XGBoost models loaded successfully!")
 
 
 # ============================================================
 # LOAD INFRASTRUCTURE ENCODER
 # ============================================================
 
-infrastructure_encoder = joblib.load(ENCODER_PATH)
+infrastructure_encoder = joblib.load(
+    BASE_DIR / "infrastructure_encoder.pkl"
+)
 
-
-print("Dataset loaded successfully!")
-print("XGBoost models loaded successfully!")
-print("Infrastructure encoder loaded successfully!")
+print(
+    "Infrastructure encoder loaded successfully!"
+)
 
 
 # ============================================================
-# ROOT
+# INFRASTRUCTURE CLASSIFICATION
+# ============================================================
+
+def classify_infrastructure(
+    station_count: int
+):
+
+    if station_count <= 1:
+        return "Low"
+
+    elif station_count <= 3:
+        return "Medium"
+
+    else:
+        return "High"
+
+
+# ============================================================
+# AQI CATEGORY
+# ============================================================
+
+def get_aqi_category(
+    aqi: float
+):
+
+    if aqi <= 50:
+        return "Good"
+
+    elif aqi <= 100:
+        return "Satisfactory"
+
+    elif aqi <= 200:
+        return "Moderate"
+
+    elif aqi <= 300:
+        return "Poor"
+
+    elif aqi <= 400:
+        return "Very Poor"
+
+    else:
+        return "Severe"
+
+
+# ============================================================
+# HOME
 # ============================================================
 
 @app.get("/")
 def root():
+
     return {
-        "message": "AQI Research Dashboard API is running"
+        "message": "AQI Research Dashboard API",
+        "status": "running"
     }
 
 
@@ -101,6 +163,7 @@ def root():
 
 @app.get("/api/health")
 def health_check():
+
     return {
         "status": "healthy"
     }
@@ -111,39 +174,56 @@ def health_check():
 # ============================================================
 
 @app.get("/api/summary")
-def summary():
+def get_summary():
 
     return {
-        "rows": len(df),
-        "cities": int(df["city"].nunique()),
-        "start_date": df["date"].min().strftime("%Y-%m-%d"),
-        "end_date": df["date"].max().strftime("%Y-%m-%d"),
-        "avg_aqi": round(
-            float(df["india_aqi"].mean()),
-            2
-        )
+
+        "total_cities":
+            int(df["city"].nunique()),
+
+        "total_records":
+            int(len(df)),
+
+        "date_start":
+            df["date"].min().strftime("%Y-%m-%d"),
+
+        "date_end":
+            df["date"].max().strftime("%Y-%m-%d"),
+
+        "average_aqi":
+            round(
+                float(df["india_aqi"].mean()),
+                2
+            ),
+
+        "maximum_aqi":
+            int(
+                df["india_aqi"].max()
+            )
     }
 
 
 # ============================================================
-# CITY LIST
+# CITIES
 # ============================================================
 
 @app.get("/api/cities")
 def get_cities():
 
     cities = sorted(
-        df["city"].unique().tolist()
+        df["city"]
+        .dropna()
+        .unique()
+        .tolist()
     )
 
     return {
-        "count": len(cities),
         "cities": cities
     }
 
 
 # ============================================================
-# CITY HISTORICAL DATA
+# CITY DATA
 # ============================================================
 
 @app.get("/api/city/{city}")
@@ -154,51 +234,139 @@ def get_city_data(city: str):
     ].copy()
 
     if city_df.empty:
+
         return {
             "error": "City not found"
         }
 
-    city_df = city_df.sort_values("date")
-
-    station_count = int(
-        city_df["number_of_monitoring_stations"].iloc[0]
+    city_df = city_df.sort_values(
+        "date"
     )
 
+    # --------------------------------------------------------
+    # Monitoring stations
+    # --------------------------------------------------------
+
+    station_count = int(
+        city_df[
+            "number_of_monitoring_stations"
+        ].iloc[0]
+    )
+
+
+    # --------------------------------------------------------
     # Infrastructure classification
-    if station_count <= 1:
-        infrastructure_level = "Low"
+    # --------------------------------------------------------
 
-    elif station_count <= 3:
-        infrastructure_level = "Medium"
+    infrastructure_level = (
+        classify_infrastructure(
+            station_count
+        )
+    )
 
-    else:
-        infrastructure_level = "High"
+
+    # --------------------------------------------------------
+    # Latest record
+    # --------------------------------------------------------
+
+    latest = city_df.iloc[-1]
+
+
+    # --------------------------------------------------------
+    # Historical data for charts
+    # --------------------------------------------------------
+
+    historical_data = (
+
+        city_df[
+            [
+                "date",
+                "india_aqi"
+            ]
+        ]
+
+        .assign(
+            date=lambda x:
+            x["date"].dt.strftime(
+                "%Y-%m-%d"
+            )
+        )
+
+        .rename(
+            columns={
+                "india_aqi": "aqi"
+            }
+        )
+
+        .to_dict(
+            orient="records"
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # Detailed records
+    # --------------------------------------------------------
+
+    records = (
+
+        city_df[
+            [
+                "date",
+                "india_aqi",
+                "india_aqi_category",
+                "dominant_pollutant"
+            ]
+        ]
+
+        .assign(
+            date=lambda x:
+            x["date"].dt.strftime(
+                "%Y-%m-%d"
+            )
+        )
+
+        .to_dict(
+            orient="records"
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # Response
+    # --------------------------------------------------------
 
     return {
 
-        "city": city,
+        "city":
+            city,
 
-        "monitoring_stations": station_count,
+        "monitoring_stations":
+            station_count,
 
-        "infrastructure_level": infrastructure_level,
+        "infrastructure_level":
+            infrastructure_level,
 
-        "records": (
-            city_df[
-                [
-                    "date",
-                    "india_aqi",
-                    "india_aqi_category",
-                    "dominant_pollutant"
-                ]
-            ]
-            .assign(
-                date=lambda x:
-                x["date"].dt.strftime("%Y-%m-%d")
-            )
-            .to_dict(
-                orient="records"
-            )
-        )
+        "latest_aqi":
+            int(
+                latest["india_aqi"]
+            ),
+
+        "latest_category":
+            str(
+                latest["india_aqi_category"]
+            ),
+
+        "latest_available_date":
+            latest["date"].strftime(
+                "%Y-%m-%d"
+            ),
+
+        "historical_data":
+            historical_data,
+
+        "records":
+            records
     }
 
 
@@ -219,7 +387,8 @@ def predict_aqi(
     if horizon not in [1, 3, 7]:
 
         return {
-            "error": "Horizon must be 1, 3, or 7 days"
+            "error":
+            "Horizon must be 1, 3, or 7 days"
         }
 
 
@@ -238,9 +407,11 @@ def predict_aqi(
         }
 
 
-    city_df = city_df.sort_values(
-        "date"
-    ).reset_index(drop=True)
+    city_df = (
+        city_df
+        .sort_values("date")
+        .reset_index(drop=True)
+    )
 
 
     # --------------------------------------------------------
@@ -260,9 +431,9 @@ def predict_aqi(
         model = model_7day
 
 
-    # --------------------------------------------------------
-    # AQI lag features
-    # --------------------------------------------------------
+    # ========================================================
+    # AQI LAG FEATURES
+    # ========================================================
 
     city_df["aqi_lag_1"] = (
         city_df["india_aqi"].shift(1)
@@ -277,11 +448,12 @@ def predict_aqi(
     )
 
 
-    # --------------------------------------------------------
-    # Rolling AQI features
-    # --------------------------------------------------------
+    # ========================================================
+    # ROLLING AQI FEATURES
+    # ========================================================
 
     city_df["aqi_roll_3_mean"] = (
+
         city_df["india_aqi"]
         .shift(1)
         .rolling(3)
@@ -289,6 +461,7 @@ def predict_aqi(
     )
 
     city_df["aqi_roll_7_mean"] = (
+
         city_df["india_aqi"]
         .shift(1)
         .rolling(7)
@@ -296,6 +469,7 @@ def predict_aqi(
     )
 
     city_df["aqi_roll_14_mean"] = (
+
         city_df["india_aqi"]
         .shift(1)
         .rolling(14)
@@ -303,9 +477,9 @@ def predict_aqi(
     )
 
 
-    # --------------------------------------------------------
-    # Date features
-    # --------------------------------------------------------
+    # ========================================================
+    # DATE FEATURES
+    # ========================================================
 
     city_df["month"] = (
         city_df["date"].dt.month
@@ -320,9 +494,9 @@ def predict_aqi(
     )
 
 
-    # --------------------------------------------------------
-    # Pollutant columns
-    # --------------------------------------------------------
+    # ========================================================
+    # POLLUTANT COLUMNS
+    # ========================================================
 
     pollutants = [
 
@@ -346,23 +520,23 @@ def predict_aqi(
     ]
 
 
-    # --------------------------------------------------------
-    # Pollutant lag features
-    # --------------------------------------------------------
+    # ========================================================
+    # POLLUTANT LAG FEATURES
+    # ========================================================
 
     for col in pollutants:
 
-        city_df[f"{col}_lag_1"] = (
-            city_df[col].shift(1)
-        )
+        city_df[
+            f"{col}_lag_1"
+        ] = city_df[col].shift(1)
 
-        city_df[f"{col}_lag_3"] = (
-            city_df[col].shift(3)
-        )
+        city_df[
+            f"{col}_lag_3"
+        ] = city_df[col].shift(3)
 
-        city_df[f"{col}_lag_7"] = (
-            city_df[col].shift(7)
-        )
+        city_df[
+            f"{col}_lag_7"
+        ] = city_df[col].shift(7)
 
 
     # ========================================================
@@ -436,9 +610,9 @@ def predict_aqi(
     ]
 
 
-    # --------------------------------------------------------
-    # Latest valid historical row
-    # --------------------------------------------------------
+    # ========================================================
+    # LATEST VALID HISTORICAL ROW
+    # ========================================================
 
     valid_rows = city_df.dropna(
         subset=feature_columns
@@ -447,26 +621,31 @@ def predict_aqi(
     if valid_rows.empty:
 
         return {
-            "error": "Not enough historical data for prediction"
+            "error":
+            "Not enough historical data for prediction"
         }
 
 
     latest_row = valid_rows.iloc[-1]
 
 
-    # --------------------------------------------------------
-    # Base feature dataframe
-    # --------------------------------------------------------
+    # ========================================================
+    # BASE FEATURE DATAFRAME
+    # ========================================================
 
     X_base = pd.DataFrame(
-        [latest_row[feature_columns].values],
+        [
+            latest_row[
+                feature_columns
+            ].values
+        ],
         columns=feature_columns
     )
 
 
-    # --------------------------------------------------------
-    # Infrastructure classification
-    # --------------------------------------------------------
+    # ========================================================
+    # INFRASTRUCTURE
+    # ========================================================
 
     station_count = int(
         latest_row[
@@ -474,37 +653,34 @@ def predict_aqi(
         ]
     )
 
-
-    if station_count <= 1:
-
-        infrastructure_level = "Low"
-
-    elif station_count <= 3:
-
-        infrastructure_level = "Medium"
-
-    else:
-
-        infrastructure_level = "High"
+    infrastructure_level = (
+        classify_infrastructure(
+            station_count
+        )
+    )
 
 
-    # --------------------------------------------------------
-    # Encode infrastructure
+    # ========================================================
+    # INFRASTRUCTURE ENCODING
     #
     # Encoder categories:
     # High, Low, Medium
     #
-    # High is dropped because drop="first"
-    # --------------------------------------------------------
+    # High is dropped because
+    # drop="first"
+    # ========================================================
 
     infra_encoded = (
         infrastructure_encoder.transform(
-            [[infrastructure_level]]
+            [[
+                infrastructure_level
+            ]]
         )
     )
 
 
     infra_df = pd.DataFrame(
+
         infra_encoded,
 
         columns=[
@@ -514,84 +690,86 @@ def predict_aqi(
     )
 
 
-    # --------------------------------------------------------
-    # Combine 39 + 2 = 41 features
-    # --------------------------------------------------------
+    # ========================================================
+    # COMBINE 39 + 2 = 41 FEATURES
+    # ========================================================
 
     X_final = pd.concat(
+
         [
-            X_base.reset_index(drop=True),
-            infra_df.reset_index(drop=True)
+            X_base.reset_index(
+                drop=True
+            ),
+
+            infra_df.reset_index(
+                drop=True
+            )
         ],
+
         axis=1
     )
 
 
-    # --------------------------------------------------------
-    # Prediction
-    # --------------------------------------------------------
+    # ========================================================
+    # PREDICTION
+    # ========================================================
 
     prediction = float(
-        model.predict(X_final)[0]
+        model.predict(
+            X_final
+        )[0]
     )
 
 
-    # --------------------------------------------------------
-    # AQI category
-    # --------------------------------------------------------
+    # ========================================================
+    # AQI CATEGORY
+    # ========================================================
 
-    if prediction <= 50:
-
-        category = "Good"
-
-    elif prediction <= 100:
-
-        category = "Satisfactory"
-
-    elif prediction <= 200:
-
-        category = "Moderate"
-
-    elif prediction <= 300:
-
-        category = "Poor"
-
-    elif prediction <= 400:
-
-        category = "Very Poor"
-
-    else:
-
-        category = "Severe"
+    category = get_aqi_category(
+        prediction
+    )
 
 
-    # --------------------------------------------------------
-    # Prediction date
-    # --------------------------------------------------------
+    # ========================================================
+    # PREDICTION DATE
+    # ========================================================
 
-    latest_date = city_df["date"].max()
+    latest_date = (
+        city_df["date"].max()
+    )
 
     prediction_date = (
+
         latest_date
-        + pd.Timedelta(days=horizon)
+        +
+        pd.Timedelta(
+            days=horizon
+        )
     )
 
 
-    # --------------------------------------------------------
-    # Response
-    # --------------------------------------------------------
+    # ========================================================
+    # RESPONSE
+    # ========================================================
 
     return {
 
-        "city": city,
+        "city":
+            city,
 
         "prediction_date":
-            prediction_date.strftime("%Y-%m-%d"),
+            prediction_date.strftime(
+                "%Y-%m-%d"
+            ),
 
-        "horizon_days": horizon,
+        "horizon_days":
+            horizon,
 
         "predicted_aqi":
-            round(prediction, 2),
+            round(
+                prediction,
+                2
+            ),
 
         "category":
             category,
@@ -603,5 +781,7 @@ def predict_aqi(
             infrastructure_level,
 
         "latest_available_date":
-            latest_date.strftime("%Y-%m-%d")
+            latest_date.strftime(
+                "%Y-%m-%d"
+            )
     }
