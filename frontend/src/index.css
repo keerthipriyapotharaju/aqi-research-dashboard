@@ -1,0 +1,668 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  background: #f4f7fb;
+  color: #172033;
+}
+
+button,
+select {
+  font-family: inherit;
+}
+
+.dashboard {
+  min-height: 100vh;
+}
+
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+.header {
+  background: #0f2747;
+  color: white;
+
+  padding: 22px 40px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  box-shadow: 0 2px 10px rgba(15, 39, 71, 0.15);
+}
+
+.header-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.header-subtitle {
+  margin-top: 5px;
+  font-size: 13px;
+  color: #b9c9dc;
+}
+
+
+/* =========================================================
+   MAIN
+========================================================= */
+
+.main-container {
+  max-width: 1400px;
+  margin: auto;
+  padding: 30px 40px;
+}
+
+
+/* =========================================================
+   CITY CONTROL
+========================================================= */
+
+.control-card {
+  background: white;
+
+  border: 1px solid #e3e9f2;
+  border-radius: 14px;
+
+  padding: 20px 24px;
+  margin-bottom: 24px;
+
+  box-shadow: 0 3px 12px rgba(15, 39, 71, 0.05);
+}
+
+.control-label {
+  display: block;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  letter-spacing: 0.5px;
+
+  color: #667085;
+
+  margin-bottom: 8px;
+}
+
+.city-select {
+  width: 260px;
+
+  padding: 11px 14px;
+
+  border: 1px solid #ccd5e2;
+  border-radius: 9px;
+
+  background: white;
+
+  color: #172033;
+
+  font-size: 14px;
+
+  outline: none;
+
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+.city-select:hover {
+  border-color: #9eb5d4;
+}
+
+.city-select:focus {
+  border-color: #2f6fed;
+
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.1);
+}
+
+
+/* =========================================================
+   CITY HEADER
+========================================================= */
+
+.city-heading {
+  display: flex;
+
+  justify-content: space-between;
+  align-items: center;
+
+  margin-bottom: 20px;
+}
+
+.city-name {
+  font-size: 28px;
+  font-weight: 700;
+
+  letter-spacing: -0.5px;
+}
+
+.city-description {
+  color: #667085;
+
+  font-size: 14px;
+
+  margin-top: 5px;
+}
+
+
+/* =========================================================
+   INFRASTRUCTURE BADGE
+========================================================= */
+
+.infrastructure-badge {
+  display: inline-block;
+
+  padding: 7px 13px;
+
+  border-radius: 20px;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.infrastructure-low {
+  background: #eef4ff;
+  color: #2f6fed;
+}
+
+.infrastructure-medium {
+  background: #fff5df;
+  color: #b77900;
+}
+
+.infrastructure-high {
+  background: #ffe8e8;
+  color: #c53030;
+}
+
+
+/* =========================================================
+   KPI CARDS
+========================================================= */
+
+.kpi-grid {
+  display: grid;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  gap: 18px;
+
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: white;
+
+  border: 1px solid #e3e9f2;
+
+  border-radius: 14px;
+
+  padding: 22px;
+
+  box-shadow: 0 3px 12px rgba(15, 39, 71, 0.05);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+
+  box-shadow: 0 7px 20px rgba(15, 39, 71, 0.08);
+}
+
+.kpi-label {
+  font-size: 12px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.4px;
+
+  color: #667085;
+
+  margin-bottom: 10px;
+}
+
+.kpi-value {
+  font-size: 30px;
+
+  font-weight: 700;
+
+  color: #172033;
+}
+
+.kpi-small {
+  font-size: 12px;
+
+  color: #98a2b3;
+
+  margin-top: 5px;
+}
+
+
+/* =========================================================
+   AQI FORECAST CARD
+========================================================= */
+
+.prediction-card {
+  background: white;
+
+  border: 1px solid #dce5f0;
+
+  border-radius: 16px;
+
+  padding: 25px;
+
+  margin-bottom: 24px;
+
+  box-shadow: 0 5px 18px rgba(15, 39, 71, 0.06);
+}
+
+.prediction-header {
+  margin-bottom: 22px;
+}
+
+.prediction-title {
+  font-size: 19px;
+
+  font-weight: 700;
+
+  color: #172033;
+}
+
+.prediction-subtitle {
+  margin-top: 5px;
+
+  font-size: 13px;
+
+  color: #98a2b3;
+}
+
+
+/* =========================================================
+   FORECAST CONTROLS
+========================================================= */
+
+.prediction-controls {
+  display: flex;
+
+  align-items: flex-end;
+
+  gap: 18px;
+
+  padding-bottom: 22px;
+
+  border-bottom: 1px solid #edf1f6;
+}
+
+.predict-button {
+  height: 42px;
+
+  padding: 0 22px;
+
+  border: none;
+
+  border-radius: 9px;
+
+  background: #2f6fed;
+
+  color: white;
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.predict-button:hover {
+  background: #245dcc;
+
+  transform: translateY(-1px);
+
+  box-shadow: 0 5px 12px rgba(47, 111, 237, 0.2);
+}
+
+.predict-button:active {
+  transform: translateY(0);
+}
+
+.predict-button:disabled {
+  opacity: 0.65;
+
+  cursor: not-allowed;
+
+  transform: none;
+
+  box-shadow: none;
+}
+
+
+/* =========================================================
+   PREDICTION RESULT
+========================================================= */
+
+.prediction-result {
+  display: grid;
+
+  grid-template-columns: 230px 1fr;
+
+  gap: 25px;
+
+  margin-top: 24px;
+
+  align-items: stretch;
+}
+
+.prediction-value-box {
+  background: #f5f8ff;
+
+  border: 1px solid #dce7fb;
+
+  border-radius: 13px;
+
+  padding: 22px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  text-align: center;
+}
+
+.prediction-label {
+  font-size: 11px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.6px;
+
+  color: #667085;
+}
+
+.prediction-value {
+  margin-top: 6px;
+
+  font-size: 42px;
+
+  line-height: 1;
+
+  font-weight: 800;
+
+  color: #172033;
+}
+
+.prediction-info {
+  display: grid;
+
+  grid-template-columns: repeat(2, 1fr);
+
+  gap: 12px;
+}
+
+.prediction-info-item {
+  background: #fafbfc;
+
+  border: 1px solid #edf1f6;
+
+  border-radius: 11px;
+
+  padding: 16px;
+}
+
+.prediction-info-item span {
+  display: block;
+
+  font-size: 11px;
+
+  color: #98a2b3;
+
+  margin-bottom: 5px;
+}
+
+.prediction-info-item strong {
+  font-size: 14px;
+
+  color: #172033;
+}
+
+.prediction-error {
+  margin-top: 20px;
+
+  padding: 14px 16px;
+
+  border-radius: 9px;
+
+  background: #fff1f1;
+
+  border: 1px solid #ffd2d2;
+
+  color: #c53030;
+
+  font-size: 13px;
+}
+
+
+/* =========================================================
+   CHART CARDS
+========================================================= */
+
+.chart-card {
+  background: white;
+
+  border: 1px solid #e3e9f2;
+
+  border-radius: 14px;
+
+  padding: 24px;
+
+  margin-bottom: 24px;
+
+  box-shadow: 0 3px 12px rgba(15, 39, 71, 0.05);
+}
+
+.chart-title {
+  font-size: 18px;
+
+  font-weight: 650;
+
+  margin-bottom: 4px;
+}
+
+.chart-subtitle {
+  font-size: 12px;
+
+  color: #98a2b3;
+}
+
+
+/* =========================================================
+   INFRASTRUCTURE ANALYSIS
+========================================================= */
+
+.infrastructure-analysis-card {
+  margin-top: 0;
+}
+
+.infrastructure-grid {
+  display: grid;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  gap: 16px;
+
+  margin-top: 22px;
+}
+
+.infrastructure-analysis-box {
+  background: #fafbfc;
+
+  border: 1px solid #e7ecf3;
+
+  border-radius: 12px;
+
+  padding: 20px;
+
+  text-align: center;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.infrastructure-analysis-box:hover {
+  transform: translateY(-2px);
+
+  box-shadow: 0 6px 16px rgba(15, 39, 71, 0.07);
+}
+
+.infrastructure-analysis-level {
+  font-size: 14px;
+
+  font-weight: 700;
+
+  color: #172033;
+
+  margin-bottom: 14px;
+}
+
+.infrastructure-analysis-mae {
+  font-size: 32px;
+
+  font-weight: 800;
+
+  color: #172033;
+}
+
+.infrastructure-analysis-label {
+  margin-top: 4px;
+
+  font-size: 11px;
+
+  color: #98a2b3;
+}
+
+.infrastructure-analysis-details {
+  margin-top: 14px;
+
+  font-size: 12px;
+
+  line-height: 1.6;
+
+  color: #667085;
+}
+
+.infrastructure-note {
+  margin-top: 20px;
+
+  padding: 15px 17px;
+
+  background: #f5f8ff;
+
+  border: 1px solid #dce7fb;
+
+  border-radius: 10px;
+
+  font-size: 12px;
+
+  line-height: 1.6;
+
+  color: #667085;
+}
+
+.infrastructure-note strong {
+  color: #172033;
+}
+
+
+/* =========================================================
+   LOADING
+========================================================= */
+
+.loading {
+  padding: 40px;
+
+  text-align: center;
+
+  color: #667085;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 900px) {
+
+  .main-container {
+    padding: 20px;
+  }
+
+  .header {
+    padding: 20px;
+
+    flex-direction: column;
+
+    align-items: flex-start;
+
+    gap: 10px;
+  }
+
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .city-heading {
+    align-items: flex-start;
+
+    gap: 10px;
+
+    flex-direction: column;
+  }
+
+  .prediction-result {
+    grid-template-columns: 1fr;
+  }
+
+  .prediction-info {
+    grid-template-columns: 1fr;
+  }
+
+  .prediction-controls {
+    flex-direction: column;
+
+    align-items: stretch;
+  }
+
+  .city-select {
+    width: 100%;
+  }
+
+  .predict-button {
+    width: 100%;
+  }
+
+  .infrastructure-grid {
+    grid-template-columns: 1fr;
+  }
+}
