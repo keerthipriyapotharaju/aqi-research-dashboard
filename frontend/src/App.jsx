@@ -1,764 +1,654 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import ReactECharts from "echarts-for-react";
-import "./index.css";
+import * as echarts from "echarts";
+import { useRef } from "react";
+import "./App.css";
+
+const API_BASE_URL = "https://aqi-research-dashboard.onrender.com";
+
+const infrastructureAnalysis = [
+  {
+    level: "Low",
+    cities: 36,
+    observations: 9936,
+    mae: 26.239,
+  },
+  {
+    level: "Medium",
+    cities: 12,
+    observations: 3312,
+    mae: 25.302,
+  },
+  {
+    level: "High",
+    cities: 2,
+    observations: 552,
+    mae: 61.653,
+  },
+];
+
+function HistoricalChart({ data }) {
+  const chartRef = useRef(null);
+
+  useEffect(() => {
+    if (!chartRef.current || !data?.length) return;
+
+    const chart = echarts.init(chartRef.current);
+
+    const dates = data.map((item) => item.date);
+    const values = data.map((item) => item.aqi);
+
+    chart.setOption({
+      tooltip: {
+        trigger: "axis",
+      },
+      grid: {
+        left: 45,
+        right: 25,
+        top: 30,
+        bottom: 45,
+      },
+      xAxis: {
+        type: "category",
+        data: dates,
+        boundaryGap: false,
+        axisLabel: {
+          color: "#64748b",
+          hideOverlap: true,
+        },
+      },
+      yAxis: {
+        type: "value",
+        name: "AQI",
+        axisLabel: {
+          color: "#64748b",
+        },
+        splitLine: {
+          lineStyle: {
+            color: "#e2e8f0",
+          },
+        },
+      },
+      series: [
+        {
+          name: "AQI",
+          type: "line",
+          data: values,
+          smooth: true,
+          symbol: "none",
+          lineStyle: {
+            width: 2,
+          },
+          areaStyle: {
+            opacity: 0.08,
+          },
+        },
+      ],
+    });
+
+    const handleResize = () => chart.resize();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      chart.dispose();
+    };
+  }, [data]);
+
+  return <div ref={chartRef} className="chart-container" />;
+}
+
+function ForecastChart({ predictions }) {
+  const chartRef = useRef(null);
+
+  useEffect(() => {
+    if (!chartRef.current || !predictions?.length) return;
+
+    const chart = echarts.init(chartRef.current);
+
+    chart.setOption({
+      tooltip: {
+        trigger: "axis",
+      },
+      grid: {
+        left: 45,
+        right: 25,
+        top: 30,
+        bottom: 45,
+      },
+      xAxis: {
+        type: "category",
+        data: predictions.map((item) => `${item.horizon_days} Day`),
+        axisLabel: {
+          color: "#64748b",
+        },
+      },
+      yAxis: {
+        type: "value",
+        name: "Predicted AQI",
+        axisLabel: {
+          color: "#64748b",
+        },
+        splitLine: {
+          lineStyle: {
+            color: "#e2e8f0",
+          },
+        },
+      },
+      series: [
+        {
+          name: "Predicted AQI",
+          type: "bar",
+          barWidth: "45%",
+          data: predictions.map((item) => item.predicted_aqi),
+          label: {
+            show: true,
+            position: "top",
+            formatter: ({ value }) => Number(value).toFixed(1),
+          },
+        },
+      ],
+    });
+
+    const handleResize = () => chart.resize();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      chart.dispose();
+    };
+  }, [predictions]);
+
+  return <div ref={chartRef} className="chart-container" />;
+}
 
 function App() {
   const [cities, setCities] = useState([]);
   const [selectedCity, setSelectedCity] = useState("Hyderabad");
-  const [cityData, setCityData] = useState(null);
 
-  const [horizon, setHorizon] = useState(1);
+  const [cityData, setCityData] = useState(null);
   const [prediction, setPrediction] = useState(null);
   const [forecastComparison, setForecastComparison] = useState([]);
 
-  const [loading, setLoading] = useState(false);
-  const [predictionLoading, setPredictionLoading] = useState(false);
-  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [loadingCities, setLoadingCities] = useState(true);
+  const [loadingCity, setLoadingCity] = useState(false);
+  const [loadingPrediction, setLoadingPrediction] = useState(false);
+  const [loadingComparison, setLoadingComparison] = useState(false);
 
-  // =========================================================
-  // RESEARCH INFRASTRUCTURE RESULTS
-  // =========================================================
+  const [horizon, setHorizon] = useState(1);
+  const [error, setError] = useState("");
 
-  const infrastructureAnalysis = [
-    {
-      level: "Low",
-      cities: 36,
-      observations: 9936,
-      mae: 26.239,
-    },
-    {
-      level: "Medium",
-      cities: 12,
-      observations: 3312,
-      mae: 25.302,
-    },
-    {
-      level: "High",
-      cities: 2,
-      observations: 552,
-      mae: 61.653,
-    },
-  ];
+  const selectedInfrastructure = useMemo(() => {
+    if (!cityData) return null;
 
-  // =========================================================
-  // LOAD CITIES
-  // =========================================================
+    const stations = cityData.monitoring_stations;
+
+    if (stations <= 1) return "Low";
+    if (stations <= 3) return "Medium";
+    return "High";
+  }, [cityData]);
 
   useEffect(() => {
-    axios
-      .get("http://127.0.0.1:8000/api/cities")
-      .then((response) => {
-        setCities(response.data.cities);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
+    const loadCities = async () => {
+      try {
+        setLoadingCities(true);
+
+        const response = await axios.get(
+          `${API_BASE_URL}/api/cities`
+        );
+
+        setCities(response.data.cities || []);
+      } catch (err) {
+        console.error(err);
+        setError("Unable to load cities.");
+      } finally {
+        setLoadingCities(false);
+      }
+    };
+
+    loadCities();
   }, []);
 
-  // =========================================================
-  // LOAD CITY DATA
-  // =========================================================
-
   useEffect(() => {
-    setLoading(true);
-    setPrediction(null);
-    setForecastComparison([]);
+    if (!selectedCity) return;
 
-    axios
-      .get(`http://127.0.0.1:8000/api/city/${selectedCity}`)
-      .then((response) => {
+    const loadCity = async () => {
+      try {
+        setLoadingCity(true);
+        setError("");
+
+        const response = await axios.get(
+          `${API_BASE_URL}/api/city/${encodeURIComponent(selectedCity)}`
+        );
+
         setCityData(response.data);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error(error);
-        setLoading(false);
-      });
+      } catch (err) {
+        console.error(err);
+        setError("Unable to load city data.");
+      } finally {
+        setLoadingCity(false);
+      }
+    };
+
+    loadCity();
   }, [selectedCity]);
 
-  // =========================================================
-  // SINGLE HORIZON PREDICTION
-  // =========================================================
+  const getPrediction = async (selectedHorizon = horizon) => {
+    try {
+      setLoadingPrediction(true);
+      setError("");
 
-  const handlePrediction = () => {
-    setPredictionLoading(true);
-    setPrediction(null);
+      const response = await axios.get(
+        `${API_BASE_URL}/api/predict/${encodeURIComponent(
+          selectedCity
+        )}?horizon=${selectedHorizon}`
+      );
 
-    axios
-      .get(
-        `http://127.0.0.1:8000/api/predict/${selectedCity}?horizon=${horizon}`
-      )
-      .then((response) => {
-        setPrediction(response.data);
-        setPredictionLoading(false);
-      })
-      .catch((error) => {
-        console.error(error);
-
-        setPrediction({
-          error: "Prediction failed. Please try again.",
-        });
-
-        setPredictionLoading(false);
-      });
+      setPrediction(response.data);
+    } catch (err) {
+      console.error(err);
+      setError("Unable to generate AQI prediction.");
+    } finally {
+      setLoadingPrediction(false);
+    }
   };
 
-  // =========================================================
-  // ALL THREE FORECASTS
-  // =========================================================
-
-  const handleForecastComparison = async () => {
-    setComparisonLoading(true);
-    setForecastComparison([]);
-
+  const loadForecastComparison = async () => {
     try {
+      setLoadingComparison(true);
+      setError("");
+
       const horizons = [1, 3, 7];
 
-      const results = await Promise.all(
+      const responses = await Promise.all(
         horizons.map((h) =>
           axios.get(
-            `http://127.0.0.1:8000/api/predict/${selectedCity}?horizon=${h}`
+            `${API_BASE_URL}/api/predict/${encodeURIComponent(
+              selectedCity
+            )}?horizon=${h}`
           )
         )
       );
 
-      const comparison = results.map(
-        (response) => response.data
+      setForecastComparison(
+        responses.map((response) => response.data)
       );
-
-      setForecastComparison(comparison);
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
+      setError("Unable to load forecast comparison.");
+    } finally {
+      setLoadingComparison(false);
     }
-
-    setComparisonLoading(false);
   };
 
-  // =========================================================
-  // HISTORICAL AQI CHART
-  // =========================================================
+  useEffect(() => {
+    if (!selectedCity) return;
 
-  const chartOption = cityData
-    ? {
-        tooltip: {
-          trigger: "axis",
-        },
+    getPrediction(1);
+    loadForecastComparison();
+  }, [selectedCity]);
 
-        grid: {
-          left: "5%",
-          right: "4%",
-          bottom: "12%",
-          top: "8%",
-          containLabel: true,
-        },
+  const handleHorizonChange = (value) => {
+    setHorizon(value);
+    getPrediction(value);
+  };
 
-        xAxis: {
-          type: "category",
-
-          data: cityData.records.map(
-            (item) => item.date
-          ),
-
-          axisLabel: {
-            color: "#667085",
-            fontSize: 10,
-          },
-        },
-
-        yAxis: {
-          type: "value",
-
-          name: "AQI",
-
-          nameTextStyle: {
-            color: "#667085",
-          },
-
-          axisLabel: {
-            color: "#667085",
-          },
-        },
-
-        series: [
-          {
-            name: "AQI",
-
-            type: "line",
-
-            data: cityData.records.map(
-              (item) => item.india_aqi
-            ),
-
-            smooth: true,
-
-            showSymbol: false,
-
-            lineStyle: {
-              width: 2,
-            },
-
-            areaStyle: {
-              opacity: 0.08,
-            },
-          },
-        ],
-      }
-    : {};
-
-  // =========================================================
-  // FORECAST COMPARISON CHART
-  // =========================================================
-
-  const forecastChartOption =
-    forecastComparison.length > 0
-      ? {
-          tooltip: {
-            trigger: "axis",
-          },
-
-          grid: {
-            left: "5%",
-            right: "5%",
-            bottom: "12%",
-            top: "15%",
-            containLabel: true,
-          },
-
-          xAxis: {
-            type: "category",
-
-            data: forecastComparison.map(
-              (item) => `${item.horizon_days}D`
-            ),
-
-            axisLabel: {
-              color: "#667085",
-              fontSize: 12,
-            },
-          },
-
-          yAxis: {
-            type: "value",
-
-            name: "Predicted AQI",
-
-            nameTextStyle: {
-              color: "#667085",
-            },
-
-            axisLabel: {
-              color: "#667085",
-            },
-          },
-
-          series: [
-            {
-              name: "Predicted AQI",
-
-              type: "bar",
-
-              barWidth: "45%",
-
-              data: forecastComparison.map(
-                (item) => item.predicted_aqi
-              ),
-
-              label: {
-                show: true,
-                position: "top",
-                formatter: "{c}",
-              },
-            },
-          ],
-        }
-      : {};
-
-  // =========================================================
-  // INFRASTRUCTURE CLASS
-  // =========================================================
-
-  const infrastructureClass =
-    cityData?.infrastructure_level?.toLowerCase() || "";
-
-  // =========================================================
-  // RETURN UI
-  // =========================================================
+  const historicalData = cityData?.historical_data || [];
 
   return (
-    <div className="dashboard">
+    <div className="app">
+      <header className="topbar">
+        <div className="brand">
+          <div className="brand-icon">AQ</div>
 
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
-      <header className="header">
-
-        <div>
-
-          <div className="header-title">
-            AQI Research Dashboard
+          <div>
+            <h1>AQI Intelligence</h1>
+            <p>Infrastructure-Aware Air Quality Forecasting</p>
           </div>
-
-          <div className="header-subtitle">
-            Multi-City AQI Forecasting & Infrastructure Analysis
-          </div>
-
         </div>
 
-        <div className="header-subtitle">
-          Research Prototype
+        <div className="live-status">
+          <span className="status-dot"></span>
+          Live API
         </div>
-
       </header>
 
+      <main className="dashboard">
+        <section className="hero-section">
+          <div>
+            <span className="eyebrow">RESEARCH DASHBOARD</span>
 
-      <main className="main-container">
+            <h2>
+              Air Quality Intelligence
+              <br />
+              Across Indian Cities
+            </h2>
 
-        {/* ===================================================
-            CITY SELECTOR
-        =================================================== */}
+            <p>
+              Multi-horizon AQI forecasting with monitoring
+              infrastructure analysis.
+            </p>
+          </div>
 
-        <div className="control-card">
+          <div className="city-selector-card">
+            <label>Select City</label>
 
-          <label className="control-label">
-            SELECT CITY
-          </label>
+            <select
+              value={selectedCity}
+              onChange={(e) => setSelectedCity(e.target.value)}
+              disabled={loadingCities}
+            >
+              {cities.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
 
-          <select
-            className="city-select"
-            value={selectedCity}
-            onChange={(e) =>
-              setSelectedCity(e.target.value)
-            }
-          >
-
-            {cities.map((city) => (
-              <option
-                key={city}
-                value={city}
-              >
-                {city}
-              </option>
-            ))}
-
-          </select>
-
-        </div>
-
-
-        {/* ===================================================
-            LOADING
-        =================================================== */}
-
-        {loading && (
-          <div className="loading">
-            Loading city data...
+        {error && (
+          <div className="error-box">
+            {error}
           </div>
         )}
 
-
-        {cityData && !loading && (
+        {loadingCity ? (
+          <div className="loading-card">
+            Loading city intelligence...
+          </div>
+        ) : cityData ? (
           <>
-
-            {/* =================================================
-                CITY HEADER
-            ================================================= */}
-
-            <div className="city-heading">
-
+            <section className="city-heading">
               <div>
+                <span className="section-label">
+                  CITY INTELLIGENCE
+                </span>
 
-                <div className="city-name">
-                  {cityData.city}
-                </div>
+                <h2>{selectedCity}</h2>
 
-                <div className="city-description">
-                  Historical air quality and monitoring infrastructure
-                </div>
-
+                <p>
+                  Latest available air quality and monitoring
+                  infrastructure information.
+                </p>
               </div>
 
-              <span
-                className={`infrastructure-badge infrastructure-${infrastructureClass}`}
+              <div
+                className={`infrastructure-badge ${selectedInfrastructure?.toLowerCase()}`}
               >
-                {cityData.infrastructure_level} Infrastructure
-              </span>
+                <span>Monitoring Infrastructure</span>
+                <strong>{selectedInfrastructure}</strong>
+              </div>
+            </section>
 
-            </div>
+            <section className="kpi-grid">
+              <div className="kpi-card">
+                <span className="kpi-label">
+                  Latest AQI
+                </span>
 
+                <strong className="kpi-value">
+                  {cityData.latest_aqi}
+                </strong>
 
-            {/* =================================================
-                KPI CARDS
-            ================================================= */}
-
-            <div className="kpi-grid">
+                <span className="kpi-sub">
+                  {cityData.latest_category}
+                </span>
+              </div>
 
               <div className="kpi-card">
+                <span className="kpi-label">
+                  Monitoring Stations
+                </span>
 
-                <div className="kpi-label">
-                  MONITORING STATIONS
-                </div>
-
-                <div className="kpi-value">
+                <strong className="kpi-value">
                   {cityData.monitoring_stations}
-                </div>
+                </strong>
 
-                <div className="kpi-small">
+                <span className="kpi-sub">
                   CPCB reference network
-                </div>
-
+                </span>
               </div>
-
 
               <div className="kpi-card">
+                <span className="kpi-label">
+                  Latest Data
+                </span>
 
-                <div className="kpi-label">
-                  LATEST AQI
-                </div>
+                <strong className="kpi-date">
+                  {cityData.latest_available_date}
+                </strong>
 
-                <div className="kpi-value">
-                  {
-                    cityData.records[
-                      cityData.records.length - 1
-                    ].india_aqi
-                  }
-                </div>
-
-                <div className="kpi-small">
-                  Most recent available value
-                </div>
-
+                <span className="kpi-sub">
+                  24-hour observation
+                </span>
               </div>
+            </section>
 
-
-              <div className="kpi-card">
-
-                <div className="kpi-label">
-                  DATA RECORDS
-                </div>
-
-                <div className="kpi-value">
-                  {cityData.records.length.toLocaleString()}
-                </div>
-
-                <div className="kpi-small">
-                  Daily observations
-                </div>
-
-              </div>
-
-            </div>
-
-
-            {/* =================================================
-                AQI FORECAST
-            ================================================= */}
-
-            <div className="prediction-card">
-
-              <div className="prediction-header">
-
+            <section className="forecast-section">
+              <div className="section-header">
                 <div>
+                  <span className="section-label">
+                    AI FORECAST
+                  </span>
 
-                  <div className="prediction-title">
-                    AQI Forecast
-                  </div>
+                  <h2>Future AQI Prediction</h2>
 
-                  <div className="prediction-subtitle">
-                    XGBoost multi-horizon prediction
-                  </div>
-
+                  <p>
+                    XGBoost multi-horizon forecasting model
+                  </p>
                 </div>
 
-              </div>
-
-
-              <div className="prediction-controls">
-
-                <div>
-
-                  <label className="control-label">
-                    FORECAST HORIZON
-                  </label>
-
-                  <select
-                    className="city-select"
-                    value={horizon}
-                    onChange={(e) =>
-                      setHorizon(
-                        Number(e.target.value)
-                      )
-                    }
-                  >
-
-                    <option value={1}>
-                      Next 1 Day
-                    </option>
-
-                    <option value={3}>
-                      Next 3 Days
-                    </option>
-
-                    <option value={7}>
-                      Next 7 Days
-                    </option>
-
-                  </select>
-
+                <div className="horizon-buttons">
+                  {[1, 3, 7].map((value) => (
+                    <button
+                      key={value}
+                      className={
+                        horizon === value ? "active" : ""
+                      }
+                      onClick={() =>
+                        handleHorizonChange(value)
+                      }
+                    >
+                      {value} Day
+                    </button>
+                  ))}
                 </div>
-
-
-                <button
-                  className="predict-button"
-                  onClick={handlePrediction}
-                  disabled={predictionLoading}
-                >
-
-                  {predictionLoading
-                    ? "Predicting..."
-                    : "Predict AQI"}
-
-                </button>
-
-
-                <button
-                  className="predict-button"
-                  onClick={handleForecastComparison}
-                  disabled={comparisonLoading}
-                >
-
-                  {comparisonLoading
-                    ? "Loading..."
-                    : "Compare 1D / 3D / 7D"}
-
-                </button>
-
               </div>
 
-
-              {/* =================================================
-                  SINGLE PREDICTION RESULT
-              ================================================= */}
-
-              {prediction && !prediction.error && (
-
-                <div className="prediction-result">
-
-                  <div className="prediction-value-box">
-
-                    <div className="prediction-label">
-                      PREDICTED AQI
-                    </div>
-
-                    <div className="prediction-value">
-                      {prediction.predicted_aqi}
-                    </div>
-
+              <div className="prediction-card">
+                {loadingPrediction ? (
+                  <div className="prediction-loading">
+                    Generating prediction...
                   </div>
-
-
-                  <div className="prediction-info">
-
-                    <div className="prediction-info-item">
-
-                      <span>
-                        Prediction Date
-                      </span>
+                ) : prediction ? (
+                  <>
+                    <div className="prediction-main">
+                      <span>Predicted AQI</span>
 
                       <strong>
-                        {prediction.prediction_date}
+                        {Number(
+                          prediction.predicted_aqi
+                        ).toFixed(1)}
                       </strong>
 
-                    </div>
-
-
-                    <div className="prediction-info-item">
-
-                      <span>
-                        Horizon
-                      </span>
-
-                      <strong>
-                        {prediction.horizon_days} Day
-                        {prediction.horizon_days > 1
-                          ? "s"
-                          : ""}
-                      </strong>
-
-                    </div>
-
-
-                    <div className="prediction-info-item">
-
-                      <span>
-                        AQI Category
-                      </span>
-
-                      <strong>
+                      <div
+                        className={`prediction-category ${prediction.category
+                          ?.toLowerCase()
+                          .replace(" ", "-")}`}
+                      >
                         {prediction.category}
-                      </strong>
-
+                      </div>
                     </div>
 
+                    <div className="prediction-details">
+                      <div>
+                        <span>Prediction Date</span>
+                        <strong>
+                          {prediction.prediction_date}
+                        </strong>
+                      </div>
 
-                    <div className="prediction-info-item">
+                      <div>
+                        <span>Forecast Horizon</span>
+                        <strong>
+                          {prediction.horizon_days} day
+                        </strong>
+                      </div>
 
-                      <span>
-                        Infrastructure
-                      </span>
+                      <div>
+                        <span>Infrastructure</span>
+                        <strong>
+                          {prediction.infrastructure_level}
+                        </strong>
+                      </div>
 
-                      <strong>
-                        {prediction.infrastructure_level}
-                      </strong>
-
+                      <div>
+                        <span>Stations</span>
+                        <strong>
+                          {prediction.monitoring_stations}
+                        </strong>
+                      </div>
                     </div>
-
+                  </>
+                ) : (
+                  <div className="prediction-loading">
+                    Select a forecast horizon.
                   </div>
+                )}
+              </div>
+            </section>
 
+            <section className="chart-section">
+              <div className="section-header">
+                <div>
+                  <span className="section-label">
+                    FORECAST COMPARISON
+                  </span>
+
+                  <h2>1, 3 and 7 Day Forecast</h2>
+
+                  <p>
+                    Comparison of predicted AQI across
+                    forecast horizons.
+                  </p>
                 </div>
-
-              )}
-
-
-              {prediction?.error && (
-
-                <div className="prediction-error">
-                  {prediction.error}
-                </div>
-
-              )}
-
-            </div>
-
-
-            {/* =================================================
-                FORECAST COMPARISON
-            ================================================= */}
-
-            {forecastComparison.length > 0 && (
+              </div>
 
               <div className="chart-card">
+                {loadingComparison ? (
+                  <div className="chart-loading">
+                    Loading forecast comparison...
+                  </div>
+                ) : (
+                  <ForecastChart
+                    predictions={forecastComparison}
+                  />
+                )}
+              </div>
+            </section>
 
-                <div className="chart-title">
-                  Multi-Horizon Forecast Comparison
+            <section className="chart-section">
+              <div className="section-header">
+                <div>
+                  <span className="section-label">
+                    HISTORICAL ANALYSIS
+                  </span>
+
+                  <h2>AQI Trend</h2>
+
+                  <p>
+                    Historical daily AQI for {selectedCity}.
+                  </p>
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <HistoricalChart data={historicalData} />
+              </div>
+            </section>
+          </>
+        ) : null}
+
+        <section className="infrastructure-section">
+          <div className="section-header">
+            <div>
+              <span className="section-label">
+                RESEARCH ANALYSIS
+              </span>
+
+              <h2>Infrastructure vs Forecasting Error</h2>
+
+              <p>
+                Observed 1-day XGBoost MAE grouped by monitoring
+                infrastructure level.
+              </p>
+            </div>
+          </div>
+
+          <div className="infrastructure-grid">
+            {infrastructureAnalysis.map((item) => (
+              <div
+                className="infrastructure-card"
+                key={item.level}
+              >
+                <div className="infrastructure-card-top">
+                  <span
+                    className={`level-dot ${item.level.toLowerCase()}`}
+                  ></span>
+
+                  <h3>{item.level}</h3>
                 </div>
 
-                <div className="chart-subtitle">
-                  Predicted AQI across 1-day, 3-day and 7-day horizons
+                <div className="infra-mae">
+                  <strong>{item.mae.toFixed(2)}</strong>
+                  <span>MAE</span>
                 </div>
 
-                <ReactECharts
-                  option={forecastChartOption}
-                  style={{
-                    height: "350px",
-                    width: "100%",
-                    marginTop: "15px",
-                  }}
-                />
-
-              </div>
-
-            )}
-
-
-            {/* =================================================
-                INFRASTRUCTURE ANALYSIS
-            ================================================= */}
-
-            <div className="chart-card infrastructure-analysis-card">
-
-              <div className="chart-title">
-                Monitoring Infrastructure Analysis
-              </div>
-
-              <div className="chart-subtitle">
-                Forecasting error across infrastructure levels
-              </div>
-
-
-              <div className="infrastructure-grid">
-
-                {infrastructureAnalysis.map((item) => (
-
-                  <div
-                    className="infrastructure-analysis-box"
-                    key={item.level}
-                  >
-
-                    <div className="infrastructure-analysis-level">
-                      {item.level} Infrastructure
-                    </div>
-
-                    <div className="infrastructure-analysis-mae">
-                      {item.mae}
-                    </div>
-
-                    <div className="infrastructure-analysis-label">
-                      Mean Absolute Error
-                    </div>
-
-                    <div className="infrastructure-analysis-details">
-                      {item.cities} cities
-                      <br />
-                      {item.observations.toLocaleString()} test observations
-                    </div>
-
+                <div className="infra-stats">
+                  <div>
+                    <span>Cities</span>
+                    <strong>{item.cities}</strong>
                   </div>
 
-                ))}
-
+                  <div>
+                    <span>Observations</span>
+                    <strong>
+                      {item.observations.toLocaleString()}
+                    </strong>
+                  </div>
+                </div>
               </div>
+            ))}
+          </div>
 
+          <div className="research-note">
+            <strong>Research interpretation</strong>
 
-              <div className="infrastructure-note">
-
-                <strong>
-                  Research interpretation:
-                </strong>{" "}
-
-                Infrastructure level provides contextual
-                information about forecasting performance,
-                but the observed differences should not be
-                interpreted as a causal effect of monitoring
-                station count.
-
-              </div>
-
-            </div>
-
-
-            {/* =================================================
-                HISTORICAL AQI
-            ================================================= */}
-
-            <div className="chart-card">
-
-              <div className="chart-title">
-                Historical AQI Trend
-              </div>
-
-              <div className="chart-subtitle">
-                Daily India AQI values for{" "}
-                {cityData.city}
-              </div>
-
-              <ReactECharts
-                option={chartOption}
-                style={{
-                  height: "500px",
-                  width: "100%",
-                  marginTop: "15px",
-                }}
-              />
-
-            </div>
-
-          </>
-        )}
-
+            <p>
+              Monitoring infrastructure provides contextual
+              information about AQI forecasting performance.
+              These observed differences should not be
+              interpreted as causal evidence that monitoring
+              station count directly determines forecasting
+              accuracy.
+            </p>
+          </div>
+        </section>
       </main>
 
+      <footer className="footer">
+        <div>
+          <strong>AQI Intelligence Dashboard</strong>
+          <span>
+            Multi-Horizon AQI Forecasting Research
+          </span>
+        </div>
+
+        <span>
+          XGBoost • FastAPI • React • CPCB Data
+        </span>
+      </footer>
     </div>
   );
 }
