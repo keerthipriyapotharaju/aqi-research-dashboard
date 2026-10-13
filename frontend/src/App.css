@@ -882,3 +882,65 @@ button {
     gap: 12px;
   }
 }
+/* Experimental AQI category classifier panel */
+.category-forecast-section {
+  margin-top: 24px;
+}
+
+.category-prediction-card {
+  display: block;
+}
+
+.category-result {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 1.15;
+}
+
+.category-model-note {
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.category-probabilities {
+  margin-top: 24px;
+}
+
+.category-probabilities h3 {
+  margin: 0 0 16px;
+  font-size: 1rem;
+}
+
+.probability-row {
+  margin: 0 0 14px;
+}
+
+.probability-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 7px;
+  font-size: 0.9rem;
+}
+
+.probability-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.probability-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #0f766e;
+  transition: width 250ms ease;
+}
+
+.category-research-note {
+  margin-top: 22px;
+}
+
+.category-error {
+  color: #b91c1c;
+}
