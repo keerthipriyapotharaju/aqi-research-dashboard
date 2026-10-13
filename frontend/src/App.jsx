@@ -168,11 +168,14 @@ function App() {
 
   const [cityData, setCityData] = useState(null);
   const [prediction, setPrediction] = useState(null);
+  const [categoryPrediction, setCategoryPrediction] = useState(null);
   const [forecastComparison, setForecastComparison] = useState([]);
 
   const [loadingCities, setLoadingCities] = useState(true);
   const [loadingCity, setLoadingCity] = useState(false);
   const [loadingPrediction, setLoadingPrediction] = useState(false);
+  const [loadingCategory, setLoadingCategory] = useState(false);
+  const [categoryError, setCategoryError] = useState("");
   const [loadingComparison, setLoadingComparison] = useState(false);
 
   const [horizon, setHorizon] = useState(1);
@@ -253,6 +256,28 @@ function App() {
     }
   };
 
+  const getCategoryPrediction = async () => {
+    try {
+      setLoadingCategory(true);
+      setCategoryError("");
+
+      const response = await axios.get(
+        `${API_BASE_URL}/api/predict-category/${encodeURIComponent(selectedCity)}`
+      );
+
+      setCategoryPrediction(response.data);
+    } catch (err) {
+      console.error("Category prediction error:", err);
+      setCategoryPrediction(null);
+      setCategoryError(
+        err.response?.data?.detail ||
+          "Unable to load experimental category prediction."
+      );
+    } finally {
+      setLoadingCategory(false);
+    }
+  };
+
   const loadForecastComparison = async () => {
     try {
       setLoadingComparison(true);
@@ -286,6 +311,7 @@ function App() {
 
     getPrediction(1);
     loadForecastComparison();
+    getCategoryPrediction();
   }, [selectedCity]);
 
   const handleHorizonChange = (value) => {
@@ -514,6 +540,108 @@ function App() {
                 ) : (
                   <div className="prediction-loading">
                     Select a forecast horizon.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="forecast-section category-forecast-section">
+              <div className="section-header">
+                <div>
+                  <span className="section-label">EXPERIMENTAL MODEL</span>
+                  <h2>Predicted AQI Category</h2>
+                  <p>
+                    Separate next-day category classifier. This is experimental
+                    and does not replace the numerical AQI forecast above.
+                  </p>
+                </div>
+              </div>
+
+              <div className="prediction-card category-prediction-card">
+                {loadingCategory ? (
+                  <div className="prediction-loading">
+                    Predicting AQI category...
+                  </div>
+                ) : categoryError ? (
+                  <div className="prediction-loading category-error">
+                    {categoryError}
+                  </div>
+                ) : categoryPrediction ? (
+                  <>
+                    <div className="prediction-main">
+                      <span>Predicted Category</span>
+                      <strong className="category-result">
+                        {categoryPrediction.predicted_category}
+                      </strong>
+                      <div className="category-model-note">
+                        Experimental 5-class XGBoost classifier
+                      </div>
+                    </div>
+
+                    <div className="prediction-details">
+                      <div>
+                        <span>Prediction Date</span>
+                        <strong>{categoryPrediction.prediction_date}</strong>
+                      </div>
+                      <div>
+                        <span>Latest Observed AQI</span>
+                        <strong>
+                          {Number(categoryPrediction.latest_observed_aqi).toFixed(1)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Latest Data Date</span>
+                        <strong>{categoryPrediction.latest_available_date}</strong>
+                      </div>
+                    </div>
+
+                    <div className="category-probabilities">
+                      <h3>Class Probabilities</h3>
+                      {Object.entries(categoryPrediction.class_probabilities || {}).map(
+                        ([label, probability]) => {
+                          const percentage = Math.max(
+                            0,
+                            Math.min(100, Number(probability) * 100)
+                          );
+                          return (
+                            <div className="probability-row" key={label}>
+                              <div className="probability-label">
+                                <span>{label}</span>
+                                <strong>{percentage.toFixed(1)}%</strong>
+                              </div>
+                              <div
+                                className="probability-track"
+                                role="progressbar"
+                                aria-label={`${label} probability`}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuenow={Number(percentage.toFixed(1))}
+                              >
+                                <div
+                                  className="probability-fill"
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        }
+                      )}
+                    </div>
+
+                    <div className="research-note category-research-note">
+                      <strong>Research note</strong>
+                      <p>
+                        This category prediction is experimental. In the current
+                        test evaluation, the classifier did not outperform the
+                        persistence baseline on overall accuracy and macro-F1.
+                        Use it as a research comparison, not as an official
+                        public-health alert.
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="prediction-loading">
+                    Category prediction is not available.
                   </div>
                 )}
               </div>
