@@ -1,0 +1,13 @@
+{
+  "model_type": "XGBClassifier",
+  "prediction_target": "AQI category",
+  "number_of_classes": 5,
+  "feature_count": 39,
+  "categories": [
+    "Good",
+    "Satisfactory",
+    "Moderate",
+    "Poor",
+    "High Pollution"
+  ]
+}

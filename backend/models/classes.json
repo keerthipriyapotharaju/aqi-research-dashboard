@@ -1,0 +1,16 @@
+{
+  "classes": [
+    "Good",
+    "Satisfactory",
+    "Moderate",
+    "Poor",
+    "High Pollution"
+  ],
+  "class_to_id": {
+    "Good": 0,
+    "Satisfactory": 1,
+    "Moderate": 2,
+    "Poor": 3,
+    "High Pollution": 4
+  }
+}
